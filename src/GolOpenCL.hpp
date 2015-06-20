@@ -9,7 +9,9 @@
 #include <vector>
 #include "Change.hpp"
 #define __CL_ENABLE_EXCEPTIONS
-#include "CL/cl.hpp"
+#include <CL/cl.h>
+#undef CL_VERSION_1_2
+#include <CL/cl.hpp>
 
 #define MSTRINGIFY(A) #A
 char* stringifiedSourceCL = 
@@ -136,7 +138,7 @@ void initGL(){
 }
 
 //the computation method will iterate over the data for the given number of generations
-static void ComputeCL(BoardData& dataStruct, const int generations, unsigned __int64 deviceType, int platformId = -1, int deviceID = -1)
+static void ComputeCL(BoardData& dataStruct, unsigned __int64 deviceType, int platformId = -1, int deviceID = -1)
 {	
 	const int width = dataStruct.width;
 	const int height = dataStruct.height;
