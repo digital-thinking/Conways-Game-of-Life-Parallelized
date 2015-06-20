@@ -11,3 +11,5 @@
 *.lai
 *.la
 *.a
+src/Release/
+src/Debug/

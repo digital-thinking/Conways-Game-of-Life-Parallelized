@@ -9,39 +9,149 @@
 #include <vector>
 #include "Change.hpp"
 #define __CL_ENABLE_EXCEPTIONS
-#include "cl.hpp"
+#include "CL/cl.hpp"
 
 #define MSTRINGIFY(A) #A
 char* stringifiedSourceCL = 
 #include "KernelOpenCL.cl"
+#include "Shared.h"
+
+
+#include <GL/glut.h>
+
 
 using namespace std;
 
-//the computation method will iterate over the data for the given number of generations
-static inline void ComputeCL(vector<vector<int>> &dataVec2, const int generations, const int &width, const int height, unsigned __int64 deviceType, int platformId = -1, int deviceID = -1)
-{	
-	const int ELEMENTS = (width*height);   // elements in each vector
-	size_t datasize = sizeof(cl_int)*ELEMENTS;
+cl::CommandQueue* queue;
+cl::Kernel* gol;
+cl::Buffer* SwapBuffer;
+int ELEMENTS;
 
-	vector<cl_int> data(ELEMENTS);
+BoardData data;
+size_t datasize;
 
-	for (int y = 0; y < height; ++y)
-	{
-		for (int x = 0; x < width; ++x)
-		{
-			data[y*width+x] = dataVec2[y][x] ;
-		}
+int width;
+int height;
+
+GLuint texture;
+GLuint textureSwap;
+cl::Image2DGL openCLTexture;
+cl::Image2DGL openCLTextureSwap;
+bool toggle = false;
+
+static void resize(int w, int h)
+{
+	glViewport(0, 0, w, h);
+	glMatrixMode(GL_PROJECTION);
+	glLoadIdentity();
+	gluOrtho2D(0, GLdouble(w), 0, GLdouble(h));
+	glMatrixMode(GL_MODELVIEW);
+	glLoadIdentity();
+
+	width = w;
+	height = h;
+}
+
+static void render()
+{
+	glClearColor(0.0f, 0, 0, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);	
+
+
+	//////////////// openCL
+	std::vector<cl::Memory> memObjs;
+	memObjs.push_back(openCLTexture);
+	memObjs.push_back(openCLTextureSwap);
+
+	//Get images
+	cl::Event ev;
+	cl_int result = CL_SUCCESS;
+	queue->enqueueAcquireGLObjects(&memObjs, NULL, &ev);
+	ev.wait();	
+
+	//Assign
+	GLuint nextTexture = texture;
+	if (!toggle){
+	
+		gol->setArg(0, openCLTexture);
+		gol->setArg(1, openCLTextureSwap);
 	}
+	else{
+		//nextTexture = textureSwap;
+		gol->setArg(0, openCLTextureSwap);
+		gol->setArg(1, openCLTexture);
+	}	
+
+	// Run
+	cl::NDRange globalWork(data.width, data.height);
+	cl::NDRange groupSize(1, 1);
+	queue->enqueueNDRangeKernel(*gol, cl::NullRange, globalWork, groupSize);	
+
+	//Release
+	queue->enqueueReleaseGLObjects(&memObjs, NULL, &ev);
+	ev.wait();
+
+	//////////////// openGL
+	glBindTexture(GL_TEXTURE_2D, nextTexture);
+
+	glLoadIdentity();	
+	glColor3f(1, 1, 1);
+	glEnable(GL_TEXTURE_2D);
+
+	// Draw a textured quad
+	glBegin(GL_QUADS);
+	glTexCoord2f(0, 0); glVertex3f(0, 0, 0);
+	glTexCoord2f(0, 1); glVertex3f(0, height, 0);
+	glTexCoord2f(1, 1); glVertex3f(width, height, 0);
+	glTexCoord2f(1, 0); glVertex3f(width, 0, 0);
+	glEnd();
+
+	glBindTexture(GL_TEXTURE_2D, 0);
+	
+
+	glFinish();
+	toggle = !toggle;
+	//glutSwapBuffers();
+
+}
+
+static void idle()
+{
+
+	glutPostRedisplay();
+}
+
+
+void initGL(){
+
+	glutInitDisplayMode(GLUT_RGB | GLUT_SINGLE);
+
+	glDisable(GL_LIGHTING);
+	glutDisplayFunc(render);
+	glutReshapeFunc(resize);
+	glutIdleFunc(idle);
+	glutMainLoop();
+
+
+}
+
+//the computation method will iterate over the data for the given number of generations
+static void ComputeCL(BoardData& dataStruct, const int generations, unsigned __int64 deviceType, int platformId = -1, int deviceID = -1)
+{	
+	const int width = dataStruct.width;
+	const int height = dataStruct.height;
+
+	ELEMENTS = (width*height);   // elements in each vector
+	datasize = sizeof(cl_uchar)*ELEMENTS;
+
+	data = dataStruct;
 
 	//pre-calculate field indexes
 	static const cl_int lastRow = height - 1; //this avoids the computing expensive modulo which should only be called if necessary
 	static const cl_int secondLastRow = lastRow - 1; //this would crash if the height of the board would be below 2, but than GOF would not be possible anyway ;)
 	static const cl_int lastColumn = width - 1;
-	static const cl_int secondLastColumn = lastColumn - 1;
+	static const cl_int secondLastColumn = lastColumn - 1;	
 
-
-	//calculate generation and use result for calculation of next generation and so on
-	
 	try {
 		// Get list of OpenCL platforms.
 		vector<cl::Platform> platform;
@@ -59,35 +169,59 @@ static inline void ComputeCL(vector<vector<int>> &dataVec2, const int generation
 			cerr << "OpenCL platforms not found." << endl;
 			exit(-1);
 		}
-
-		// Get first available GPU device which supports double precision.
+				// Get first available GPU device which supports double precision.
 		cl::Context context;
+		vector<cl::Platform> platforms;
 		vector<cl::Device> device;
 		for(auto p = platform.begin(); device.empty() && p != platform.end(); p++) {
-			vector<cl::Device> pldev;
+			vector<cl::Device> pldev;						
+			cout << (*p).getInfo<CL_PLATFORM_NAME>() << endl;
 
 			try {
 				p->getDevices(deviceType, &pldev);
-				
+
+				int t = pldev.front().getInfo<CL_DEVICE_TYPE>();				
 				for(auto d = pldev.begin(); device.empty() && d != pldev.end(); d++) {
 					if (!d->getInfo<CL_DEVICE_AVAILABLE>()) continue;
 					
-					device.push_back(*d);
-					context = cl::Context(device);
+					platforms.push_back(*p);
+					device.push_back(*d);	
+
+					cout << (*d).getInfo<CL_DEVICE_NAME>() << endl;
 				}
-			} catch(...) {
+			}
+			catch (cl::Error er) {
 				device.clear();
+				printf("ERROR: %s(%s)\n", er.what(), oclErrorString(er.err()));
 			}
 		}
 
 		if (device.empty()) {
 			cerr << "No devices or no device with specified type found!" << endl;
 			exit(-2);
+		}	
+
+		//Make Context current
+		glutInitWindowSize(800, 600);
+		glutCreateWindow("OpenGL openCL test");
+
+		cl_context_properties props[] =
+		{
+			CL_GL_CONTEXT_KHR, (cl_context_properties)wglGetCurrentContext(),
+			CL_WGL_HDC_KHR, (cl_context_properties)wglGetCurrentDC(),
+			CL_CONTEXT_PLATFORM, (cl_context_properties)(platforms[0])(),
+			0
+		};
+
+		//cl_context cxGPUContext = clCreateContext(props, 1, &cdDevices[uiDeviceUsed], NULL, NULL, &err);
+		try{
+			context = cl::Context(CL_DEVICE_TYPE_GPU, props);
+		}
+		catch (cl::Error er) {
+			printf("ERROR: %s(%s)\n", er.what(), oclErrorString(er.err()));
 		}
 
-		//cout << device[0].getInfo<CL_DEVICE_NAME>() << endl;
-
-		//std::ifstream programFile("KernelOpenCL.cl");
+		std::ifstream programFile("KernelOpenCL.cl");
 		std::string programString(stringifiedSourceCL);
 		cl::Program::Sources source(1, std::make_pair(programString.c_str(), programString.length()+1));
 		cl::Program program(context, source);
@@ -102,67 +236,62 @@ static inline void ComputeCL(vector<vector<int>> &dataVec2, const int generation
 			exit(-3);
 		}
 
-		cl::Kernel gol(program, "Gol_All");
-		//cl::Kernel gol(program, "Gol_Inner");
+		// Create Texture
+		texture = 0;
+		glGenTextures(1, &texture);
+		glBindTexture(GL_TEXTURE_2D, texture);
+		glBindTexture(GL_TEXTURE_2D, texture);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);	
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, data.data.data());
 
+		//Second
+		textureSwap = 0;
+		glGenTextures(1, &textureSwap);
+		glBindTexture(GL_TEXTURE_2D, textureSwap);
+		glBindTexture(GL_TEXTURE_2D, textureSwap);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, data.data.data());
 
-		// Allocate device buffers and transfer input data to device.
+			
+		cl_int result;
+		openCLTexture = cl::Image2DGL(context, CL_MEM_READ_WRITE, GL_TEXTURE_2D, 0, texture, &result);
+		if (result != CL_SUCCESS) {
+			std::cout << "Texture sharing failed";
+		};
+		openCLTextureSwap = cl::Image2DGL(context, CL_MEM_READ_WRITE, GL_TEXTURE_2D, 0, textureSwap, &result);
+		if (result != CL_SUCCESS) { 
+			std::cout << "Texture sharing failed";
+		};
 
-		//cl::Buffer Params(context, CL_MEM_READ_ONLY, sizeof(Info), &info);
-		//cl::Buffer Params(context, CL_MEM_READ_ONLY, sizeof(int), (void*)&width);
-
-		cl::Buffer SwapBuffer(context, CL_MEM_WRITE_ONLY, datasize, NULL);
-
-		//write the params struct to GPU memory as a buffer
-		//queue.enqueueWriteBuffer(params, CL_TRUE, 0, sizeof(Info), &params);
-
+		gol = new cl::Kernel(program, "Gol_All");
 
 		// Set kernel parameters.
 		cl_int clWidth = width;
 		cl_int clHeight = height;
 
-		gol.setArg(1, SwapBuffer);
-		gol.setArg(2, clWidth);
-		gol.setArg(3, clHeight);
+		gol->setArg(2, clWidth);
+		gol->setArg(3, clHeight);
 
 		// Create command queue.
-		cl::CommandQueue queue(context, device[0]);
-		//queue.enqueueTask(add);
-		//queue.enqueueWriteBuffer(Data, CL_TRUE, 0, datasize, data.data());
-		//queue.enqueueReadBuffer(SwapData, CL_TRUE, 0, datasize, swapData.data());
-		// Launch kernel on the compute device.
+		queue = new cl::CommandQueue(context, device[0]);	
 
-		cl::Buffer Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, datasize, data.data());
-		gol.setArg(0, Buffer);
+		initGL();		
 
-
-		queue.enqueueWriteBuffer(Buffer, CL_TRUE, 0, datasize, data.data());
-
-		//till N-1 just copy output to input buffer (inexpensive way to read buffer during iterations)
-		for (int gen = 0; gen < generations-1; ++gen)
-		{
-			//cl::Buffer Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, datasize, data.data());
-			
-			queue.enqueueNDRangeKernel(gol, cl::NullRange, ELEMENTS, cl::NullRange);
-			// Get result back to host.
-				queue.enqueueCopyBuffer(SwapBuffer, Buffer, 0, 0, datasize);
-		}
-		
-		//in the last iteration, we read the buffer back to data
-		queue.enqueueNDRangeKernel(gol, cl::NullRange, ELEMENTS, cl::NullRange);
-		queue.enqueueReadBuffer(SwapBuffer, CL_TRUE, 0, datasize, data.data());
-
-		for (int row = 0; row < height; ++row)
-		{
-			for (int col = 0; col < width; ++col)
-			{
-				dataVec2[row][col] = data[row*width+col];
-			}
-		}
+	
 	}
 	catch (const cl::Error &err)
 	{
 		cerr << "OpenCL error: " << err.what() << "(" << err.err() << ")" << endl;
 		exit(-4);
 	}
+	
+
 }
+
+

@@ -1,45 +1,44 @@
 MSTRINGIFY(
-kernel void Gol_All(
-			    global const int *data,
-			    global int *swapData,
-				int width,
-				int height
-			   )
+
+	kernel void Gol_All(
+	__read_only image2d_t input,
+	__write_only  image2d_t output,
+	int width,
+	int height
+	)
 {
-	// get index into global data array
-	const int x = get_global_id(0);
+		const sampler_t sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_FILTER_NEAREST | CLK_ADDRESS_REPEAT;
+		const int x = get_global_id(0);
+		const int y = get_global_id(1);
+		int2 cords = (int2)(x, y);
+		write_imagef(output, cords, (float4)(1.0f, 1.0f, 1.0f, 1.0f));
 
-	int top = x-width;
-	int bottom = x+width;
-	int left = -1; //in the inner ring, we can be sure that the index isn't out of bounds without checking the borders
-	int right = +1; //start position of the right neighbour
+		float4 stateAlive = (float4)(1.0f, 1.0f, 1.0f, 1.0f);
+		float4 stateDead = (float4)(0.0f, 0.0f, 0.0f, 0.0f);
 
-	if (x % width == 0)
-		left += width;
+		int alive = 0;
+		if (read_imagef(input, sampler, (int2)(x - 1, y - 1)).x > 0) alive++;
+		if (read_imagef(input, sampler, (int2)(x    , y - 1)).x > 0) alive++;
+		if (read_imagef(input, sampler, (int2)(x + 1, y - 1)).x > 0) alive++;
 
-	else if (x % width == (width - 1))
-		right -= width;
+		if (read_imagef(input, sampler, (int2)(x - 1, y    )).x > 0) alive++;
+		if (read_imagef(input, sampler, (int2)(x + 1, y    )).x > 0) alive++;
 
-	if (top < 0) //row 0
-		top += width*height;
+		if (read_imagef(input, sampler, (int2)(x - 1, y + 1)).x > 0) alive++;
+		if (read_imagef(input, sampler, (int2)(x    , y + 1)).x > 0) alive++;
+		if (read_imagef(input, sampler, (int2)(x + 1, y + 1)).x > 0) alive++;
 
-	else if (bottom >= (height * width))
-		bottom -= width*height;
 
-	int alive = data[x+left]
-			  + data[x+right]
-			  + data[top+left]
-			  + data[top]
-			  + data[top+right]
-			  + data[bottom+left]
-			  + data[bottom]
-			  + data[bottom+right];
+		float4 color = read_imagef(input, sampler, cords);
+
+		//calculate next state according to the amount of alive cells in the neighbourhood
+		if ((alive == 3) || //a cell with 3 neigbours becomes/stays alive
+			(alive == 2 && color.x > 0)) //a live cell with 2 (or 3) neighbours stays alive (with 3 neighbours it already got alive in the statement before)
+			write_imagef(output, cords, stateAlive);
+		else
+			write_imagef(output, cords, stateDead);	//dies from overpopulation or isolation, or remains dead if it already was
+
 	
-	//calculate next state according to the amount of alive cells in the neighbourhood
-	if ((alive == 3) || //a cell with 3 neigbours becomes/stays alive
-		(alive == 2 && data[x] == 1)) //a live cell with 2 (or 3) neighbours stays alive (with 3 neighbours it already got alive in the statement before)
-			swapData[x] = 1;
-	else								
-		swapData[x] = 0;	//dies from overpopulation or isolation, or remains dead if it already was
-};
+	};
+
 );

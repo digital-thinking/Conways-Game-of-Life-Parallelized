@@ -18,11 +18,21 @@
 #include "Change.hpp"
 #include "GolSeq.hpp"
 #include "GolOpenCL.hpp"
+#include "Shared.h"
+
+#include <GL/glut.h>
+
+
 
 using namespace std;
 
+
 int main( int argc, char* argv[] )
 {
+
+	glutInit(&argc, argv);
+
+
 	//proper execution: gol --load board5x5 test1 in.gol --save board5x5 test1 out.gol --generations 1 --measure
 	char *input = NULL, *output = NULL; //path to the input and output file
 	char *mode = NULL;
@@ -87,11 +97,13 @@ int main( int argc, char* argv[] )
 		}
 	}
 
-	if (input == false || output == false) //input and output must be specified
+	if (input == false) //input and output must be specified
 		return EXIT_FAILURE;
 
+	
 	//FileManager fileManager; //This FileManager is dedicated to parsing GOL Data
-	vector<vector<int>> boardData = ReadboardData(input); //read the data from the input file
+	cout << "Reading file: " << input << "\n";
+	BoardData boardData  = ReadboardData(input); //read the data from the input file
 
 	if (boardData.size() == 0) //if an error occurred, the board size is 0
 	{
@@ -99,47 +111,23 @@ int main( int argc, char* argv[] )
 	}
 
 
-	static const int height = boardData.size(); 
-	static const int width = boardData[0].size(); //each row has the same size of columns
-
 	//Board board(width, height); //the computation will take place in the board class
 		
 	timer.stop(); //Initialization time till board has been created
 	if (measure)
-		std::cout << timer.getElapsedTimeString() << "; ";
+		std::cout << "Init: " << timer.getElapsedTimeString() << "\n";
 
-	//start the computation for the according mode
-	if (mode == NULL || (strcmp(mode, "seq") == 0)) //perform calculations sequentially
+	if (strcmp(mode, "ocl") == 0)
 	{
 		timer.start(); //measure how long the computation of the generations takes
-		ComputeSeq(boardData, generations, width, height); //the computation method will iterate over the data for the given number of generations
-		timer.stop(); //Kernel run time
-	}
-	else if (strcmp(mode, "omp") == 0)
-	{
-		timer.start(); //measure how long the computation of the generations takes
-		ComputeMP(boardData, generations, width, height, threads); //the computation method will iterate over the data for the given number of generations
-		timer.stop(); //Kernel run time
-	}
-	else if (strcmp(mode, "ocl") == 0)
-	{
-		timer.start(); //measure how long the computation of the generations takes
-		ComputeCL(boardData, generations, width, height, deviceType, platformID, deviceID); //the computation method will iterate over the data for the given number of generations
+		ComputeCL(boardData, generations, deviceType, platformID, deviceID); //the computation method will iterate over the data for the given number of generations
 		timer.stop(); //Kernel run time
 	}
 	
 
 	if (measure)
-		std::cout << timer.getElapsedTimeString() << "; ";
+		std::cout << " Compute:" << timer.getElapsedTimeString() << "\n";
 
-	timer.start(); //time (save to file and deallocation)
-	
-	SaveBoardData(boardData, output);
-
-	timer.stop(); //Saving & dealloc time
-	if (measure)
-		std::cout << timer.getElapsedTimeString() << ";\n";
-
-	
+	system("pause");
 	return 0;
 }

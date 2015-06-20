@@ -10,10 +10,12 @@
 #include <iostream>
 #include <fstream>
 #include <iomanip>
+#include "Shared.h"
+
 
 using namespace std;
 
-vector<vector<int>> ReadboardData(const char *input)
+BoardData ReadboardData(const char *input)
 {
 	std::ifstream file(input); //open input file
 
@@ -37,7 +39,7 @@ vector<vector<int>> ReadboardData(const char *input)
 		}
 
 		//read the data (each cell equals one character) from the file and save it in a proper 2D vector
-		vector<vector<int>> boardData(height, vector<int>(width));
+		vector<unsigned char> boardData(height*width);
 
 		//read Input-lines and fill board with data
 		unsigned int row = 0;
@@ -46,8 +48,8 @@ vector<vector<int>> ReadboardData(const char *input)
 			const char *data = line.c_str(); //this creates a char-array; every element equals 1 boardData
 			for (unsigned int column = 0; column < width; ++column)
 			{
-				int alive = data[column] == 'x' ? 1 : 0;
-				boardData[row][column] = alive; //fill vector with contents of the string
+				int alive = data[column] == 'x' ? 255 : 0;
+				boardData[row * width + column] = alive; //fill vector with contents of the string
 			}
 
 			++row;
@@ -55,10 +57,15 @@ vector<vector<int>> ReadboardData(const char *input)
 
 		file.close();
 
-		return boardData;
+		BoardData dataStruct;
+		dataStruct.data = boardData;
+		dataStruct.width = width;
+		dataStruct.height = height;
+
+		return dataStruct;
 	}
 
-	return vector<vector<int>>(0);
+	return BoardData();
 }
 
 bool SaveBoardData(vector<vector<int>> &boardData, const char *output)
