@@ -5,7 +5,7 @@ Based on a fork from [Mobiletainment](https://github.com/Mobiletainment/Conways-
 Furthermore rendering is done in OpenGL with context sharing.
 
 Benchmark:
-4k Resolution, 36 FramesPerSecond @nvidia Geforce GTX970, Intel 2500k
+4k Resolution, 45 FramesPerSecond @nvidia Geforce GTX970, Intel 2500k
 
 What is special about this?
 ------------
