@@ -60,11 +60,7 @@ int main( int argc, char* argv[] )
 		else if (strcmp(option, "--save") == 0)
 		{
 			output = argv[++i];
-		}
-		else if (strcmp(option, "--generations") == 0)
-		{
-			generations = atoi(argv[++i]);
-		}
+		}		
 		else if (strcmp(option, "--measure") == 0)
 		{
 			measure = true;
@@ -90,11 +86,7 @@ int main( int argc, char* argv[] )
 		else if (strcmp(option, "--deviceId") == 0)
 		{
 			deviceID = atoi(argv[++i]);
-		}
-		else if (strcmp(option, "--threads") == 0)
-		{
-			threads = atoi(argv[++i]);
-		}
+		}		
 	}
 
 	if (input == false) //input and output must be specified
@@ -104,6 +96,20 @@ int main( int argc, char* argv[] )
 	//FileManager fileManager; //This FileManager is dedicated to parsing GOL Data
 	cout << "Reading file: " << input << "\n";
 	BoardData boardData  = ReadboardData(input); //read the data from the input file
+	
+	/*
+	BoardData boardData;
+	boardData.width = 512;
+	boardData.height = 512;
+	boardData.data = std::vector<unsigned char>(boardData.width * boardData.height);
+	
+	std::fill(boardData.data.begin(), boardData.data.end(), 255);
+	for (unsigned char & value : boardData.data)
+	{
+		if (rand() > 10000) value = 0;
+	}
+	*/
+	
 
 	if (boardData.size() == 0) //if an error occurred, the board size is 0
 	{
@@ -120,7 +126,7 @@ int main( int argc, char* argv[] )
 	if (strcmp(mode, "ocl") == 0)
 	{
 		timer.start(); //measure how long the computation of the generations takes
-		ComputeCL(boardData, generations, deviceType, platformID, deviceID); //the computation method will iterate over the data for the given number of generations
+		ComputeCL(boardData, deviceType, platformID, deviceID); //the computation method will iterate over the data for the given number of generations
 		timer.stop(); //Kernel run time
 	}
 	
