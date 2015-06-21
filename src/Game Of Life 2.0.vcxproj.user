@@ -1,13 +1,15 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <LocalDebuggerCommandArguments>--mode ocl --device cpu|gpu --measure --load "files\step1000_in_250generations\random250_in.gol" --save  "files/output/random10000_step250_out1.gol" --generations 250</LocalDebuggerCommandArguments>
+    <LocalDebuggerCommandArguments>--mode ocl --device cpu|gpu --measure --load "in.gol" --generations 250</LocalDebuggerCommandArguments>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
     <RemoteDebuggerAttach>true</RemoteDebuggerAttach>
+    <LocalDebuggerWorkingDirectory>E:\Git_Svn\Conways-Game-of-Life-Parallelized\bin</LocalDebuggerWorkingDirectory>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <LocalDebuggerCommandArguments>--mode ocl --device cpu --measure --load "files\step1000_in_250generations\random250_in.gol" --save  "files/output/random10000_step250_out1.gol" --generations 250</LocalDebuggerCommandArguments>
+    <LocalDebuggerCommandArguments>--mode ocl --device gpu --measure --load "in.gol"</LocalDebuggerCommandArguments>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
+    <LocalDebuggerWorkingDirectory>E:\Git_Svn\Conways-Game-of-Life-Parallelized\bin</LocalDebuggerWorkingDirectory>
   </PropertyGroup>
   <PropertyGroup>
     <ShowAllFiles>false</ShowAllFiles>
