@@ -95,12 +95,14 @@ int main( int argc, char* argv[] )
 	
 	//FileManager fileManager; //This FileManager is dedicated to parsing GOL Data
 	cout << "Reading file: " << input << "\n";
-	BoardData boardData  = ReadboardData(input); //read the data from the input file
 	
-	/*
+	
+	
 	BoardData boardData;
-	boardData.width = 512;
-	boardData.height = 512;
+	/*
+	
+	boardData.width = 3840;
+	boardData.height = 2160;
 	boardData.data = std::vector<unsigned char>(boardData.width * boardData.height);
 	
 	std::fill(boardData.data.begin(), boardData.data.end(), 255);
@@ -109,6 +111,7 @@ int main( int argc, char* argv[] )
 		if (rand() > 10000) value = 0;
 	}
 	*/
+	boardData = ReadboardData(input); //read the data from the input file
 	
 
 	if (boardData.size() == 0) //if an error occurred, the board size is 0

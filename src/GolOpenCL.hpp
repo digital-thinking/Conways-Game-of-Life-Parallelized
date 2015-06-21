@@ -13,6 +13,7 @@
 #undef CL_VERSION_1_2
 #include <CL/cl.hpp>
 
+
 #define MSTRINGIFY(A) #A
 char* stringifiedSourceCL = 
 #include "KernelOpenCL.cl"
@@ -41,6 +42,8 @@ cl::Image2DGL openCLTexture;
 cl::Image2DGL openCLTextureSwap;
 bool toggle = false;
 
+Timer timer;
+
 static void resize(int w, int h)
 {
 	glViewport(0, 0, w, h);
@@ -59,6 +62,7 @@ static void render()
 	glClearColor(0.0f, 0, 0, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);	
 
+	timer.start();
 
 	//////////////// openCL
 	std::vector<cl::Memory> memObjs;
@@ -83,6 +87,7 @@ static void render()
 		gol->setArg(0, openCLTextureSwap);
 		gol->setArg(1, openCLTexture);
 	}	
+	
 
 	// Run
 	cl::NDRange globalWork(data.width, data.height);
@@ -92,6 +97,7 @@ static void render()
 	//Release
 	queue->enqueueReleaseGLObjects(&memObjs, NULL, &ev);
 	ev.wait();
+
 
 	//////////////// openGL
 	glBindTexture(GL_TEXTURE_2D, nextTexture);
@@ -113,13 +119,17 @@ static void render()
 
 	glFinish();
 	toggle = !toggle;
+
+
+	timer.stop(); //Initialization time till board has been created
+	std::cout << "Framerate: " << 1.0f/timer.getElapsedTimeInSec() << "\n";
 	//glutSwapBuffers();
 
 }
 
 static void idle()
 {
-
+	//Sleep(2000);
 	glutPostRedisplay();
 }
 
@@ -133,6 +143,7 @@ void initGL(){
 	glutReshapeFunc(resize);
 	glutIdleFunc(idle);
 	glutMainLoop();
+	
 
 
 }
@@ -247,7 +258,7 @@ static void ComputeCL(BoardData& dataStruct, unsigned __int64 deviceType, int pl
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);	
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, data.data.data());
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE, width, height, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, data.data.data());
 
 		//Second
 		textureSwap = 0;
@@ -258,7 +269,7 @@ static void ComputeCL(BoardData& dataStruct, unsigned __int64 deviceType, int pl
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, data.data.data());
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE, width, height, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, data.data.data());
 
 			
 		cl_int result;
